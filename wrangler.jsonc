@@ -1,19 +1,23 @@
+
 /**
- * For more details on how to configure Wrangler, refer to:
- * https://developers.cloudflare.com/workers/wrangler/configuration/
+ * Configuracion de Cloudflare Workers
+ * Servidor MCP seguro para correos empresariales
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "correo-mcp-seguro",
   "main": "src/index.ts",
   "compatibility_date": "2026-03-10",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
   "migrations": [
     {
       "new_sqlite_classes": ["MyMCP"],
       "tag": "v1"
     }
   ],
-  "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
     "bindings": [
       {
