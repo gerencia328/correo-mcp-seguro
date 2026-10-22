@@ -10,6 +10,12 @@ export interface ReplyRecord {
   state: "prepared" | "sending" | "sent" | "failed" | "unknown";
   preview?: ReplyPreview; receipt?: ReplyReceipt; error?: string;
 }
+export type ReplyAction =
+  | { kind: "prepare"; input: Parameters<ReplyService["prepare"]>[0] }
+  | { kind: "send"; input: Parameters<ReplyService["send"]>[0] }
+  | { kind: "status"; input: string }
+  | { kind: "check"; input: ReplyAccountId };
+export type ReplyResult = { ok: true; data: unknown } | { ok: false; error: string };
 const PREFIX = "mail-reply:v1:";
 
 export class ReplyService {

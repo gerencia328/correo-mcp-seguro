@@ -25,5 +25,11 @@ try {
   assert.ok(config.code_challenge_methods_supported.includes("S256"));
   const badCallback = await mf.dispatchFetch("https://worker.test/callback?state=forged&code=synthetic");
   assert.equal(badCallback.status, 400); assert.ok(!(await badCallback.text()).includes("synthetic"));
+  const namespace = await mf.getDurableObjectNamespace("MCP_OBJECT");
+  const ledger = namespace.getByName("reply-ledger:gerencia@mascorona.com");
+  const missing = await ledger.replyOperation("gerencia@mascorona.com", { kind: "status", input: crypto.randomUUID() });
+  assert.equal(missing.ok, false); assert.equal(missing.error, "REPLY_NOT_FOUND");
+  const forbidden = await ledger.replyOperation("unapproved@example.com", { kind: "status", input: crypto.randomUUID() });
+  assert.equal(forbidden.ok, false); assert.equal(forbidden.error, "MAIL_ACCESS_DENIED");
   console.log("PASS workerd: built Worker loads, unauthenticated/invalid bearer rejected, OAuth endpoints/PKCE preserved, forged callback rejected.");
 } finally { await mf.dispose(); }
