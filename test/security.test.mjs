@@ -126,12 +126,38 @@ test("getMessage returns bounded raw MIME via PEEK with byte offset", async () =
 });
 test("Google refresh grant uses fixed HTTPS endpoint and XOAUTH2, never LOGIN", async () => {
   const f = fake();
-  const request = async (url, init) => { assert.equal(url, "https://oauth2.googleapis.com/token"); assert.equal(init.redirect, "error"); assert.equal(init.body.get("grant_type"), "refresh_token"); return Response.json({ access_token: "test-access-token" }); };
+  const request = async (url, init) => { assert.equal(url, "https://oauth2.googleapis.com/token"); assert.equal(init.redirect, "manual"); assert.equal(init.body.get("grant_type"), "refresh_token"); return Response.json({ access_token: "test-access-token" }); };
   const s = new MailService({ GOOGLE_IMAP_REFRESH_TOKEN: "test-refresh", GOOGLE_IMAP_CLIENT_ID: "test-client", GOOGLE_IMAP_CLIENT_SECRET: "test-client-secret" }, f.dial, request);
   await s.listFolders({ accountId: accounts[5].id, offset: 0, limit: 1 });
   assert.ok(f.state.commands.some(c => c.tls && c.line.includes("AUTHENTICATE XOAUTH2"))); assert.ok(!f.state.commands.some(c => c.line.includes("LOGIN")));
 });
+test("Google diagnostics expose only fixed codes, never response secrets", async () => {
+  for (const [error, expected] of [["invalid_client", "GOOGLE_OAUTH_INVALID_CLIENT"], ["invalid_grant", "GOOGLE_OAUTH_INVALID_GRANT"], ["sensitive-untrusted-value", "GOOGLE_OAUTH_HTTP_ERROR"], ["__proto__", "GOOGLE_OAUTH_HTTP_ERROR"]]) {
+    const request = async () => Response.json({ error, error_description: "synthetic-sensitive-description", access_token: "synthetic-sensitive-token" }, { status: 400 });
+    const s = new MailService({ GOOGLE_IMAP_REFRESH_TOKEN: "test-refresh", GOOGLE_IMAP_CLIENT_ID: "test-client", GOOGLE_IMAP_CLIENT_SECRET: "test-secret" }, () => { throw new Error("IMAP must not be reached"); }, request);
+    await assert.rejects(s.listFolders({ accountId: accounts[5].id, offset: 0, limit: 1 }), e => e instanceof Error && e.message === expected);
+  }
+});
 test("OAuth JSON response is bounded", async () => { await assert.rejects(boundedJson(new Response("x".repeat(20000))), /OAUTH_RESPONSE_LIMIT/); });
+test("Google diagnostics separate transport, JSON and missing-token failures", async () => {
+  const cases = [
+    [async () => { throw new TypeError("Illegal invocation synthetic-secret"); }, "GOOGLE_OAUTH_FETCH_BINDING_ERROR"],
+    [async () => { throw new TypeError("synthetic-secret"); }, "GOOGLE_OAUTH_NETWORK_ERROR"],
+    [async () => new Response("invalid JSON synthetic-secret"), "GOOGLE_OAUTH_RESPONSE_INVALID"],
+    [async () => Response.json({}), "GOOGLE_OAUTH_ACCESS_TOKEN_INVALID"],
+  ];
+  for (const [request, expected] of cases) {
+    const s = new MailService({ GOOGLE_IMAP_REFRESH_TOKEN: "test-refresh", GOOGLE_IMAP_CLIENT_ID: "test-client", GOOGLE_IMAP_CLIENT_SECRET: "test-secret" }, () => { throw new Error("IMAP must not be reached"); }, request);
+    await assert.rejects(s.listFolders({ accountId: accounts[5].id, offset: 0, limit: 1 }), e => e instanceof Error && e.message === expected);
+  }
+});
+test("Google token redirects are rejected without forwarding credentials", async () => {
+  let calls = 0;
+  const request = async (url, init) => { calls++; assert.equal(init.redirect, "manual"); return new Response(null, { status: 302, headers: { Location: "https://example.invalid/" } }); };
+  const s = new MailService({ GOOGLE_IMAP_REFRESH_TOKEN: "test-refresh", GOOGLE_IMAP_CLIENT_ID: "test-client", GOOGLE_IMAP_CLIENT_SECRET: "test-secret" }, () => { throw new Error("IMAP must not be reached"); }, request);
+  await assert.rejects(s.listFolders({ accountId: accounts[5].id, offset: 0, limit: 1 }), /GOOGLE_OAUTH_REDIRECT_REJECTED/);
+  assert.equal(calls, 1);
+});
 test("Access ID token rejects wrong audience/issuer, expired/missing expiration and future nbf", () => {
   const claims = { aud: "test-client", iss: "https://test.cloudflareaccess.com", exp: 200, sub: "user", email: "owner@example.com" };
   assert.equal(validateAccessClaims(claims, "test-client", "https://test.cloudflareaccess.com/cdn-cgi/access/sso/oidc/token", 100).email, "owner@example.com");

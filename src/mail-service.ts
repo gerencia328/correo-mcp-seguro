@@ -23,17 +23,47 @@ async function credential(id: string, env: MailSecrets, request: typeof fetch) {
   if (!isConfigured(account, env)) throw new MailError("MAIL_SECRET_NOT_CONFIGURED");
   if (account.id !== "jegatech-gerencia") return env[account.secret]!;
   // This OAuth grant is independent of the working ChatGPT/Access OAuth grant.
+  let phase: "request" | "response" | "parse" = "request";
   try {
     const response = await request("https://oauth2.googleapis.com/token", {
-      method: "POST", redirect: "error", signal: AbortSignal.timeout(8000),
+      method: "POST", redirect: "manual", signal: AbortSignal.timeout(8000),
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ grant_type: "refresh_token", client_id: env.GOOGLE_IMAP_CLIENT_ID!, client_secret: env.GOOGLE_IMAP_CLIENT_SECRET!, refresh_token: env.GOOGLE_IMAP_REFRESH_TOKEN! }),
     });
-    if (!response.ok) { await response.body?.cancel(); throw new MailError("GOOGLE_OAUTH_REFRESH_FAILED"); }
+    phase = "response";
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      throw new MailError("GOOGLE_OAUTH_REDIRECT_REJECTED");
+    }
+    if (!response.ok) {
+      // Return only fixed diagnostic codes, never Google's body or descriptions.
+      const body = await boundedJson(response);
+      const codes: Record<string, string> = {
+        invalid_client: "GOOGLE_OAUTH_INVALID_CLIENT",
+        invalid_grant: "GOOGLE_OAUTH_INVALID_GRANT",
+        unauthorized_client: "GOOGLE_OAUTH_UNAUTHORIZED_CLIENT",
+        invalid_scope: "GOOGLE_OAUTH_INVALID_SCOPE",
+        access_denied: "GOOGLE_OAUTH_ACCESS_DENIED",
+      };
+      const code = typeof body.error === "string" && Object.prototype.hasOwnProperty.call(codes, body.error)
+        ? codes[body.error] : "GOOGLE_OAUTH_HTTP_ERROR";
+      throw new MailError(code);
+    }
+    phase = "parse";
     const body = await boundedJson(response);
-    if (typeof body.access_token !== "string" || !/^[\x21-\x7e]{1,4096}$/.test(body.access_token)) throw new MailError("GOOGLE_OAUTH_REFRESH_FAILED");
+    if (typeof body.access_token !== "string" || !/^[\x21-\x7e]{1,4096}$/.test(body.access_token)) throw new MailError("GOOGLE_OAUTH_ACCESS_TOKEN_INVALID");
     return body.access_token;
-  } catch { throw new MailError("GOOGLE_OAUTH_REFRESH_FAILED"); }
+  } catch (error) {
+    if (error instanceof MailError) throw error;
+    if (error instanceof TypeError) throw new MailError(
+      /illegal invocation|incorrect.*this|receiver/i.test(error.message)
+        ? "GOOGLE_OAUTH_FETCH_BINDING_ERROR" : "GOOGLE_OAUTH_NETWORK_ERROR");
+    if (error instanceof SyntaxError) throw new MailError("GOOGLE_OAUTH_RESPONSE_INVALID");
+    const name = error && typeof error === "object" && "name" in error ? error.name : undefined;
+    if (name === "TimeoutError" || name === "AbortError") throw new MailError("GOOGLE_OAUTH_TIMEOUT");
+    throw new MailError(phase === "request" ? "GOOGLE_OAUTH_REQUEST_FAILED"
+      : phase === "parse" ? "GOOGLE_OAUTH_RESPONSE_INVALID" : "GOOGLE_OAUTH_HTTP_ERROR");
+  }
 }
 
 export function headers(raw: string) {
