@@ -36,7 +36,12 @@
     "binding": "AI"
   },
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": { "enabled": true, "invocation_logs": false }
+  },
+  "vars": {
+    "MAIL_ALLOWED_EMAILS": "gerencia@mascorona.com"
   },
   "dev": {
     "port": 8788

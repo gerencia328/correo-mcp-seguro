@@ -2,6 +2,7 @@
 // OAuth utility functions with CSRF and state validation security fixes
 
 import type { AuthRequest, ClientInfo } from "@cloudflare/workers-oauth-provider";
+import { boundedJson } from "./mail-service";
 
 /**
  * OAuth 2.1 compliant error class.
@@ -883,6 +884,8 @@ export async function fetchUpstreamAuthToken(params: {
 	});
 
 	const response = await fetch(params.upstream_url, {
+		signal: AbortSignal.timeout(8000),
+		redirect: "error",
 		method: "POST",
 		headers: {
 			"Content-Type": "application/x-www-form-urlencoded",
@@ -892,17 +895,17 @@ export async function fetchUpstreamAuthToken(params: {
 	});
 
 	if (!response.ok) {
-		const errorText = await response.text();
+		await response.body?.cancel();
 		return [
 			null,
 			null,
-			new Response(`Failed to exchange code for token: ${errorText}`, {
+			new Response("Failed to exchange code for token", {
 				status: response.status,
 			}),
 		];
 	}
 
-	const body = (await response.json()) as any;
+	const body = await boundedJson(response);
 
 	const accessToken = body.access_token as string;
 	if (!accessToken) {

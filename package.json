@@ -7,14 +7,20 @@
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
 		"cf-typegen": "wrangler types",
+		"test": "node test/run.mjs",
+		"test:runtime": "node test/runtime.mjs",
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@cloudflare/workers-oauth-provider": "^0.8.1",
+		"@modelcontextprotocol/sdk": "1.32.1",
 		"agents": "^0.17.1",
 		"just-pick": "^4.2.0",
 		"octokit": "^5.0.5",
 		"zod": "^4.4.3"
+	},
+	"overrides": {
+		"@modelcontextprotocol/sdk": "$@modelcontextprotocol/sdk"
 	},
 	"devDependencies": {
 		"@types/node": "^26.0.1",

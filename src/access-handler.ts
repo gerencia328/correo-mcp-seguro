@@ -1,4 +1,6 @@
 import { Buffer } from "node:buffer";
+import { validateAccessClaims } from "./oauth-claims";
+import { boundedJson } from "./mail-service";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import {
 	addApprovedClient,
@@ -102,12 +104,12 @@ export async function handleAccessRequest(
 
 			return redirectToAccess(request, env, stateToken, codeChallenge, redirectHeaders);
 		} catch (error: any) {
-			console.error("POST /authorize error:", error);
+			console.error("OAuth authorization failed");
 			if (error instanceof OAuthError) {
 				return error.toResponse();
 			}
 			// Unexpected non-OAuth error
-			return new Response(`Internal server error: ${error.message}`, { status: 500 });
+			return new Response("Internal server error", { status: 500 });
 		}
 	}
 
@@ -209,8 +211,9 @@ async function fetchAccessPublicKey(env: Env, kid: string) {
 		throw new Error("access jwks url not provided");
 	}
 	// TODO: cache this
-	const resp = await fetch(env.ACCESS_JWKS_URL);
-	const keys = (await resp.json()) as {
+	const resp = await fetch(env.ACCESS_JWKS_URL, { signal: AbortSignal.timeout(8000), redirect: "error" });
+	if (!resp.ok) { await resp.body?.cancel(); throw new Error("Access JWKS unavailable"); }
+	const keys = (await boundedJson(resp, 65536)) as {
 		keys: (JsonWebKey & { kid: string })[];
 	};
 	const jwk = keys.keys.filter((key) => key.kid === kid)[0];
@@ -250,6 +253,7 @@ function parseJWT(token: string) {
  */
 async function verifyToken(env: Env, token: string) {
 	const jwt = parseJWT(token);
+	if (jwt.header.alg !== "RS256" || typeof jwt.header.kid !== "string") throw new Error("Invalid Access token header");
 	const key = await fetchAccessPublicKey(env, jwt.header.kid);
 
 	const verified = await crypto.subtle.verify(
@@ -263,12 +267,5 @@ async function verifyToken(env: Env, token: string) {
 		throw new Error("failed to verify token");
 	}
 
-	const claims = jwt.payload;
-	const now = Math.floor(Date.now() / 1000);
-	// Validate expiration
-	if (claims.exp < now) {
-		throw new Error("expired token");
-	}
-
-	return claims;
+	return validateAccessClaims(jwt.payload, env.ACCESS_CLIENT_ID, env.ACCESS_TOKEN_URL);
 }

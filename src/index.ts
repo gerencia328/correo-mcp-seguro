@@ -4,16 +4,19 @@ import { McpAgent } from "agents/mcp";
 import { z } from "zod";
 import { handleAccessRequest } from "./access-handler";
 import type { Props } from "./workers-oauth-utils";
+import { registerMailTools } from "./mail-tools";
+import type { MailSecrets } from "./mail-policy";
 
 const ALLOWED_EMAILS = new Set(["<INSERT EMAIL>"]);
 
 export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
-		name: "Access OAuth Proxy Demo",
-		version: "1.0.0",
+		name: "Correo Empresarial MCP",
+		version: "1.1.0",
 	});
 
 	async init() {
+		registerMailTools(this.server, this.env as Env & MailSecrets, () => this.props?.email);
 		// Hello, world!
 		this.server.tool(
 			"add",

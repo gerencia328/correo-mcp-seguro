@@ -1,5 +1,7 @@
 # Model Context Protocol (MCP) Server + Access OAuth
 
+> Este Worker existente ahora incluye herramientas IMAP de solo lectura. Consultar [MAIL_SETUP.md](MAIL_SETUP.md) para configuración segura, cuentas, límites y verificación. Las instrucciones del template más abajo son históricas: **no recrear** Worker, KV ni OAuth.
+
 This is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) server that supports remote MCP connections, with Access OAuth built-in.
 
 You can deploy it to your own Cloudflare account, and after you create your own Access for SaaS OIDC app, you'll have a fully functional remote MCP server that you can build off. Users will be able to connect to your MCP server by signing in with your connected Access Identity Provider.
