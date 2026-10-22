@@ -128,7 +128,9 @@ export class ImapSession {
       const line = await this.line();
       const literal = /\{(\d+)\+?\}$/.exec(line);
       const prefix = literal ? line.slice(0, literal.index) : line;
-      const pieces = prefix.match(/"(?:[^"\\]|\\.)*"|[()]|[^\s()]+/g) ?? [];
+      // BODY sections may contain a parenthesized HEADER.FIELDS list. It is
+      // part of the attribute name, not a nested FETCH value.
+      const pieces = prefix.match(/"(?:[^"\\]|\\.)*"|BODY\[[^\]\r\n]*\](?:<\d+>)?|[()]|[^\s()]+/gi) ?? [];
       flat.push(...pieces);
       if (!literal) break;
       const size = Number(literal[1]);

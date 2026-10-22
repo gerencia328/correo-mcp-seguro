@@ -95,9 +95,12 @@ export class MailService {
       const messages: { uid: number; flags: Token; size: number; headers: Record<string, string> }[] = [];
       // Fetch sequentially: at most one socket and bounded response per operation.
       for (const uid of chosen) {
-        const fetched = await s.command(`UID FETCH ${uid} (UID FLAGS RFC822.SIZE BODY.PEEK[HEADER]<0.4096>)`);
+        const fetched = await s.command(`UID FETCH ${uid} (UID FLAGS RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID)]<0.4096>)`);
         const a = fetched.map(attributes).find(a => a?.UID === String(uid));
-        if (a) messages.push({ uid, flags: a.FLAGS ?? [], size: Number(a["RFC822.SIZE"]), headers: headers(String(a["BODY[HEADER]<0>"] ?? "")) });
+        if (a) {
+          const selectedHeaders = Object.entries(a).find(([key]) => /^BODY\[HEADER\.FIELDS \(/.test(key))?.[1];
+          messages.push({ uid, flags: a.FLAGS ?? [], size: Number(a["RFC822.SIZE"]), headers: headers(typeof selectedHeaders === "string" ? selectedHeaders : "") });
+        }
       }
       return { messages, uidValidity, scannedUidRange: { low, high }, nextBeforeUid: ids.length > chosen.length ? chosen[chosen.length - 1] : low > 1 ? low : null, note: "Continuar con nextBeforeUid y uidValidity, incluso si esta ventana no tiene coincidencias. UID puede tener huecos." };
     });

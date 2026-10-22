@@ -83,11 +83,13 @@ test("search sorts UIDs, constrains window, uses PEEK and advances cursor", asyn
     if (cmd.startsWith("EXAMINE")) return `* OK [UIDVALIDITY 9] valid\r\n* OK [UIDNEXT 1001] next\r\n${tag} OK readonly\r\n`;
     if (cmd.startsWith("UID SEARCH")) return `* SEARCH 601 700 999\r\n${tag} OK found\r\n`;
     const uid = cmd.split(" ")[2]; const h = "Subject: test\r\n";
-    return `* 1 FETCH (UID ${uid} FLAGS () RFC822.SIZE 100 BODY[HEADER]<0> {${h.length}}\r\n${h})\r\n${tag} OK fetched\r\n`;
+    return `* 1 FETCH (UID ${uid} FLAGS () RFC822.SIZE 100 BODY[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID)]<0> {${h.length}}\r\n${h})\r\n${tag} OK fetched\r\n`;
   } });
   const s = new MailService(credentials, f.dial);
   const result = await s.searchMessages({ accountId: accounts[0].id, folder: "INBOX", limit: 2, unreadOnly: true, from: 'a"b@example.com' });
   assert.deepEqual(result.messages.map(m => m.uid), [999, 700]); assert.equal(result.nextBeforeUid, 700);
+  assert.equal(result.messages[0].headers.subject, "test");
+  assert.ok(f.state.commands.filter(c => c.line.includes("FETCH")).every(c => c.line.includes("HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID)")));
   assert.deepEqual(result.scannedUidRange, { low: 501, high: 1000 });
   assert.ok(f.state.commands.some(c => c.line.includes("UID SEARCH UID 501:1000 UNSEEN")));
   assert.ok(f.state.commands.filter(c => c.line.includes("FETCH")).every(c => c.line.includes("BODY.PEEK")));
