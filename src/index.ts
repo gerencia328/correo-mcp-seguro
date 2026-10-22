@@ -6,17 +6,19 @@ import { handleAccessRequest } from "./access-handler";
 import type { Props } from "./workers-oauth-utils";
 import { registerMailTools } from "./mail-tools";
 import type { MailSecrets } from "./mail-policy";
+import { registerReplyTools } from "./reply-tools";
 
 const ALLOWED_EMAILS = new Set(["<INSERT EMAIL>"]);
 
 export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "Correo Empresarial MCP",
-		version: "1.1.0",
+		version: "1.2.0",
 	});
 
 	async init() {
 		registerMailTools(this.server, this.env as Env & MailSecrets, () => this.props?.email);
+		registerReplyTools(this.server, this.env as Env & MailSecrets, () => this.props?.email, this.ctx.storage);
 		// Hello, world!
 		this.server.tool(
 			"add",

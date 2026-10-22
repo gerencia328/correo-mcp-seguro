@@ -9,6 +9,7 @@
 		"cf-typegen": "wrangler types",
 		"test": "node test/run.mjs",
 		"test:runtime": "node test/runtime.mjs",
+		"test:reply-runtime": "node test/reply-persistence.mjs",
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {

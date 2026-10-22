@@ -41,7 +41,7 @@ export function headers(raw: string) {
   for (const line of raw.replace(/\r\n[ \t]+/g, " ").split("\r\n")) {
     const colon = line.indexOf(":"); if (colon <= 0) continue;
     const key = line.slice(0, colon).toLowerCase();
-    if (["from", "to", "cc", "subject", "date", "message-id", "content-type", "content-transfer-encoding"].includes(key)) result[key] = line.slice(colon + 1).trim().slice(0, 2048);
+    if (["from", "reply-to", "references", "to", "cc", "subject", "date", "message-id", "content-type", "content-transfer-encoding"].includes(key)) result[key] = line.slice(colon + 1).trim().slice(0, 2048);
   }
   return result;
 }
@@ -116,5 +116,21 @@ export class MailService {
       if (!Number.isSafeInteger(size) || size < 0 || typeof raw !== "string") throw new MailError("IMAP_PROTOCOL_ERROR");
       return { uid: input.uid, uidValidity: input.uidValidity, size, offset: input.offset, rawRfc822Utf8: raw, nextOffset: input.offset + input.maxBytes < size ? input.offset + input.maxBytes : null, format: "Fragmento RFC822/MIME sin procesar, decodificado como UTF-8. Puede incluir base64, quoted-printable o HTML; no ejecutar HTML ni seguir enlaces. No es una descarga binaria de adjuntos." };
     });
+  }
+
+  async replyHeaders(input: { accountId: string; folder: string; uid: number; uidValidity: number }) {
+    return this.withAccount(input.accountId, async s => {
+      await examine(s, input.folder, input.uidValidity);
+      const records = await s.command(`UID FETCH ${input.uid} (UID BODY.PEEK[HEADER.FIELDS (FROM REPLY-TO TO CC SUBJECT DATE MESSAGE-ID REFERENCES)]<0.8192>)`);
+      const a = records.map(attributes).find(a => a?.UID === String(input.uid));
+      if (!a) throw new MailError("MESSAGE_NOT_FOUND");
+      const raw = Object.entries(a).find(([key]) => /^BODY\[HEADER\.FIELDS \(/.test(key))?.[1];
+      if (typeof raw !== "string" || !raw.endsWith("\r\n\r\n")) throw new MailError("REPLY_HEADERS_INCOMPLETE");
+      return headers(raw);
+    });
+  }
+
+  async saveSent(accountId: string, raw: string) {
+    return this.withAccount(accountId, s => s.appendSent(raw));
   }
 }

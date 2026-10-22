@@ -1,5 +1,7 @@
 # Correo MCP: operación segura
 
+> **Actualización 1.2:** el propietario autorizó añadir respuestas con revisión previa. Las cinco herramientas IMAP aquí descritas siguen siendo de solo lectura. Las herramientas adicionales de preparación, envío SMTP confirmado y consulta de recibos se explican en [REPLIES.md](REPLIES.md). Las indicaciones de ausencia de envío más abajo describen la versión inicial de lectura.
+
 Este cambio amplía el Worker **existente** `correo-mcp-seguro`. Conserva `MyMCP`, migración `v1`, `MCP_OBJECT`, `OAUTH_KV`, `/mcp`, `/authorize`, `/callback`, `/register` y `/token`. No crea infraestructura ni exige un plan de pago. `add` se conserva para comprobar la conexión histórica.
 
 ## Acceso

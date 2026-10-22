@@ -1,5 +1,7 @@
 # Model Context Protocol (MCP) Server + Access OAuth
 
+> Versión 1.2: respuestas por SMTP con vista previa y confirmación explícita, además de las consultas IMAP. Véase [REPLIES.md](REPLIES.md). Las instrucciones de creación del template al final de este README son históricas.
+
 > Este Worker existente ahora incluye herramientas IMAP de solo lectura. Consultar [MAIL_SETUP.md](MAIL_SETUP.md) para configuración segura, cuentas, límites y verificación. Las instrucciones del template más abajo son históricas: **no recrear** Worker, KV ni OAuth.
 
 This is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) server that supports remote MCP connections, with Access OAuth built-in.

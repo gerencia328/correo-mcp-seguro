@@ -173,6 +173,28 @@ export class ImapSession {
     }
     throw new MailError("IMAP_RECORD_LIMIT");
   }
+
+  // Deliberately narrow write: only archive an already-submitted reply in Sent.
+  // Not exposed as an arbitrary IMAP command or MCP tool.
+  async appendSent(raw: string) {
+    const bytes = encoder.encode(raw);
+    if (bytes.length > 65536 || this.expired) throw new MailError("SENT_COPY_LIMIT");
+    const tag = `A${++this.tag}`;
+    await this.writer!.write(encoder.encode(`${tag} APPEND "INBOX.Sent" (\\Seen) {${bytes.length}}\r\n`));
+    let literalSent = false;
+    for (let i = 0; i < 100; i++) {
+      const record = await this.record();
+      if (record[0] === "+" && !literalSent) {
+        literalSent = true;
+        await this.writer!.write(bytes);
+        await this.writer!.write(encoder.encode("\r\n"));
+      } else if (record[0] === tag) {
+        if (record[1] !== "OK" || !literalSent) throw new MailError("SENT_COPY_FAILED");
+        return;
+      } else if (record[0] !== "*" || record[1] === "BYE") throw new MailError("SENT_COPY_FAILED");
+    }
+    throw new MailError("SENT_COPY_FAILED");
+  }
 }
 
 export async function examine(session: ImapSession, folder: string, expected?: number) {
